@@ -35,9 +35,9 @@ def get_db_connection():
     except pyodbc.Error as e:
         print("Erro na conexão:", e)
         return None
-    
+
 #conecta ao banco
-def consultar_bd(fornecedor, natureza, localizacao, periodo_In, periodo_fin):
+def consultar_bd(fornecedor, localizacao, periodo_In, periodo_fin):
     conn = get_db_connection()
     #checa e retorna caso a conexão falhe
     if conn is None:
@@ -51,6 +51,7 @@ def consultar_bd(fornecedor, natureza, localizacao, periodo_In, periodo_fin):
         LOCALIZACAO, 
         DATA,
         CLI_NOME,
+        CLI_TPPESSOA,
         CLI_CPF,
         UF,
         CIDADE,
@@ -62,26 +63,56 @@ def consultar_bd(fornecedor, natureza, localizacao, periodo_In, periodo_fin):
     FROM VW_FATURAMENTO_DETALHADO
     JOIN CLIENTE C ON CLI_CODI = COD_CLIENTE_GERAL
     WHERE FOR_CODI = ?
-    AND NATUREZA IN ({})
+    AND NATUREZA IN ('VEN', 'BOV', 'DVE')
     AND LOCALIZACAO = ?
     AND CONVERT(DATETIME, DATA, 103) BETWEEN ? AND ?
     ORDER BY DATA DESC
         '''
          # Formatando corretamente as listas de parâmetros
-        query = query.format(','.join(['?']*len(natureza)))
-        parametros = [fornecedor] + natureza + [localizacao] + [periodo_In, periodo_fin]
+        query = query.format() 
+        parametros = [fornecedor] + [localizacao] + [periodo_In, periodo_fin]
         cur.execute(query, parametros)
 
         #retorna os dados recolhidos no select
-        rows = cur.fetchall()
+        rows1 = cur.fetchall()
         cur.close()
         conn.close()
-        return rows
+        return rows1
     #retorna em caso de erro no recolhimento dos dados
     except pyodbc.Error as e:
         print("Erro ao juntar os dados data:", e)
         return []
+
+def consultar_bd_estoque(fornecedor):
+    conn = get_db_connection()
+    if conn is None:
+        print("Falha na conexão ao banco de dados.")
+        return []
     
+    try:
+        cur = conn.cursor()
+        query = '''
+        SELECT P.PRO_CODI AS CODIGO,
+               SEC_CODI AS SECAO,
+               PRO_DESC AS PRODUTO,
+	           CAST(EST_QUAN AS INT) AS ESTOQUE
+        FROM [Gestor].[dbo].[PRODUTO] P
+        JOIN dbo.ESTOQUE M ON M.PRO_CODI = P.PRO_CODI
+        WHERE FOR_CODI = ?
+        AND SEC_CODI IN ('009','012')
+        AND EST_QUAN != '0'
+        ORDER BY PRO_DESC ASC
+        '''
+        cur.execute(query, [fornecedor])
+        rows2 = cur.fetchall()
+        cur.close()
+        conn.close()
+        return rows2
+    
+    except pyodbc.Error as e:
+        print("Erro ao consultar o estoque:", e)
+        return []
+
 #botão consultar recolhendo os dados da caixa de entrada   
 def on_consulta():
     fornecedor = forn_var.get()
@@ -123,24 +154,41 @@ def exibir_resultados(resultados):
     ]
     resultados_df = pd.DataFrame(resultados, columns=colunas)
 
-# Cria a pasta caso não exista e salva o arquivo em xls para excell
-def save_to_excel(rows, filename):
+# Salva os dados em um arquivo Excel com duas abas, se necessário
+def save_to_excel(rows1, rows2, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    # Converte as linhas em tuplas
-    data = [tuple(row) for row in rows]
-
-    df = pd.DataFrame(data, columns=[
+    
+    data1 = [tuple(row) for row in rows1]
+    df1 = pd.DataFrame(data1, columns=[
         'DISTRIBUIDOR', 'DATA FATURAMENTO', 'RAZÃO SOCIAL', 'CNPJ', 'ESTADO', 'MUNICÍPIO', 'NATUREZA', 'VENDEDOR', 'DESCR ITEM', 'QTDE', 'VALOR TOTAL BRUTO'])
-    df.to_excel(filename, index=False)
+    
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        df1.to_excel(writer, sheet_name='Faturamento', index=False)
+        
+        if rows2:
+            data2 = [tuple(row) for row in rows2]
+            df2 = pd.DataFrame(data2, columns=[
+                'CODIGO', 'SECAO', 'PRODUTO', 'ESTOQUE'])
+            df2.to_excel(writer, sheet_name='Estoque', index=False)
+    
     workbook = load_workbook(filename)
-    sheet = workbook.active
-    # Seta a formatação do texto e cores da planilha
+    sheet1 = workbook['Faturamento']
     red_fill = PatternFill(start_color="FFFF5050", end_color="FFFF5050", fill_type="solid")
     white_font = Font(color="FFFFFF", name="Aptos Narrow", bold=True)
-    for cell in sheet[1]:
+    for cell in sheet1[1]:
         cell.fill = red_fill
         cell.font = white_font
     
+    sheet1.auto_filter.ref = sheet1.dimensions
+    
+    if rows2:
+        sheet2 = workbook['Estoque']
+        red_fill = PatternFill(start_color="FFFF5050", end_color="FFFF5050", fill_type="solid")
+        for cell in sheet2[1]:
+            cell.fill = red_fill
+            cell.font = white_font
+        sheet2.auto_filter.ref = sheet2.dimensions
+
     workbook.save(filename)
     print(f"Aqruivo salvo como: {filename}")
     messagebox.showinfo("Successo", f"Aqruivo salvo como: {filename}")
