@@ -248,34 +248,59 @@ root = tk.Tk()
 root.title("Consulta ao Banco de Dados")
 
 # Listas predefinidas
-fornecedor = ['00155', '00116', '00290', '01076', '00993', '00790', '01069', '00207', '00224', '00262', '00940']
-natureza = ['VEN', 'BOV', 'DVE']
-localizacao = ['000', '001', '002', '004']
+fornecedores = {
+    'ZOETIS': '00155',
+    'CEVA': '00116',
+    'ELANCO': '00290',
+    'KONIG': '01076',
+    'VETOQUINOL': '00993',
+    'AGENER': '00790',
+    'DECHRA': '01069',
+    'BST-VET&AGRO': '00207',
+    'GEA': '00224',
+    'LABYES': '00262',
+    'OURO FINO': '00940'
+}
+
+loc = {'MATRIZ':'001', 'LOJA' :'002', 'INDUSTRIA':'004'}
 
 # Variáveis para armazenar as seleções
 forn_var = tk.StringVar()
-nat_var = tk.StringVar()
 loc_var = tk.StringVar()
 periodo_ini_var = tk.StringVar()
 periodo_fin_var = tk.StringVar()
 filename_var = StringVar()
 email_var = StringVar()
+gerar_estoque_var = tk.BooleanVar()
 
-# Caixas de listas
-ttk.Label(root, text="Fornecedor:").grid(column=0, row=0, padx=10, pady=5)
-fornecedor_combobox = ttk.Combobox(root, textvariable=forn_var, values=[f"{codigo} - {nome}" for codigo, nome in fornecedor])
+def on_fornecedor_select(event):
+    nome_selecionado = fornecedor_combobox.get()
+    numero_fornecedor = fornecedores[nome_selecionado]
+    forn_var.set(numero_fornecedor)
+
+# Preencher o combobox com os nomes dos fornecedores
+Label(root, text="Fornecedor:").grid(column=0, row=0, padx=10, pady=5)
+fornecedor_combobox = ttk.Combobox(root, values=list(fornecedores.keys()))
 fornecedor_combobox.grid(column=1, row=0, padx=10, pady=5)
+fornecedor_combobox.bind("<<ComboboxSelected>>", on_fornecedor_select)
 
-ttk.Label(root, text="Natureza:").grid(column=0, row=1, padx=10, pady=5)
-ttk.Combobox(root, textvariable=nat_var, values=natureza).grid(column=1, row=1, padx=10, pady=5)
+def on_loc_select(event):
+    num_selecionado = local_combobox.get()
+    numero_loc = loc[num_selecionado]
+    loc_var.set(numero_loc)
 
-ttk.Label(root, text="Localização:").grid(column=0, row=2, padx=10, pady=5)
-ttk.Combobox(root, textvariable=loc_var, values=localizacao).grid(column=1, row=2, padx=10, pady=5)
+# Preencher o combobox com os nomes da localizacao
+Label(root, text="Localização:").grid(column=0, row=1, padx=10, pady=5)
+local_combobox = ttk.Combobox(root, values=list(loc.keys()))
+local_combobox.grid(column=1, row=1, padx=10, pady=5)
+local_combobox.bind("<<ComboboxSelected>>", on_loc_select)
 
+#periodo inicial
 ttk.Label(root, text="Data Inicial:").grid(column=0, row=4, padx=10, pady=5)
 data_ini_entry = DateEntry(root, textvariable=periodo_ini_var, date_pattern='yyyy-mm-dd')
 data_ini_entry.grid(column=1, row=4, padx=10, pady=5)
 
+#periodo final
 ttk.Label(root, text="Data Final:").grid(column=0, row=5, padx=10, pady=5)
 data_fin_entry = DateEntry(root, textvariable=periodo_fin_var, date_pattern='yyyy-mm-dd')
 data_fin_entry.grid(column=1, row=5, padx=10, pady=5)
@@ -286,11 +311,15 @@ ttk.Button(root, text="Consultar", command=on_consulta).grid(column=1, row=6, pa
 
 # Label e Entry para o nome do arquivo
 Label(root, text="Nome do arquivo:").grid(column=0, row=7, padx=10, pady=5)
+# Variável para armazenar o estado da caixa de seleção
 Entry(root, textvariable=filename_var).grid(column=1, row=7, padx=10, pady=5)
+
+# Adicione a Checkbutton para gerar o estoque
+ttk.Checkbutton(root, text="Gerar aba de Estoque", variable=gerar_estoque_var).grid(column=0, row=8, padx=10, pady=5)
 
 # Botão para salvar
 ttk.Button(root, text="Salvar", command=on_salva).grid(column=1, row=8, padx=10, pady=5)
-# Esta caixa só aparece após clicar em salvar
+
 # Entry para o email a ser enviado com o arquivo
 ttk.Label(root, text="deseja enviar o arquivo por email?").grid(column=0, row=9, padx=10, pady=5)
 ttk.Entry(root, textvariable=email_var).grid(column=1, row=9, padx=10, pady=5)
